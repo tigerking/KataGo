@@ -1,0 +1,2 @@
+cd cpp; cmake . -DBUILD_MCTS=1 -DUSE_BACKEND=OPENCL -DNO_GIT_REVISION=1; make
+
