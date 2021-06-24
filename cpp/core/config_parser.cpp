@@ -244,6 +244,35 @@ bool ConfigParser::contains(const string& key) const {
   return keyValues.find(key) != keyValues.end();
 }
 
+bool ConfigParser::containsAny(const std::vector<std::string>& possibleKeys) const {
+  for(const string& key : possibleKeys) {
+    if(contains(key))
+      return true;
+  }
+  return false;
+}
+
+std::string ConfigParser::firstFoundOrFail(const std::vector<std::string>& possibleKeys) const {
+  for(const string& key : possibleKeys) {
+    if(contains(key))
+      return key;
+  }
+  string message = "Could not find key";
+  for(const string& key : possibleKeys) {
+    message += " '" + key + "'";
+  }
+  throw IOError(message + " in config file " + fileName);
+}
+
+std::string ConfigParser::firstFoundOrEmpty(const std::vector<std::string>& possibleKeys) const {
+  for(const string& key : possibleKeys) {
+    if(contains(key))
+      return key;
+  }
+  return string();
+}
+
+
 string ConfigParser::getString(const string& key) {
   auto iter = keyValues.find(key);
   if(iter == keyValues.end())
@@ -266,6 +295,18 @@ string ConfigParser::getString(const string& key, const set<string>& possibles) 
 
 vector<string> ConfigParser::getStrings(const string& key) {
   return Global::split(getString(key),',');
+}
+
+vector<string> ConfigParser::getStringsNonEmptyTrim(const string& key) {
+  vector<string> raw = Global::split(getString(key),',');
+  vector<string> trimmed;
+  for(size_t i = 0; i<raw.size(); i++) {
+    string s = Global::trim(raw[i]);
+    if(s.length() <= 0)
+      continue;
+    trimmed.push_back(s);
+  }
+  return trimmed;
 }
 
 vector<string> ConfigParser::getStrings(const string& key, const set<string>& possibles) {

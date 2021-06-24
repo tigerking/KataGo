@@ -161,6 +161,13 @@ static double initialBlackAdvantage(const BoardHistory& hist) {
   return stoneValue * extraBlackStones + (7.0 - hist.rules.komi - whiteHandicapBonus);
 }
 
+static double getBoardSizeScaling(const Board& board) {
+  return pow(19.0 * 19.0 / (double)(board.x_size * board.y_size), 0.75);
+}
+static double getPointsThresholdForHandicapGame(double boardSizeScaling) {
+  return std::max(4.0 / boardSizeScaling, 2.0);
+}
+
 static bool noWhiteStonesOnBoard(const Board& board) {
   for(int y = 0; y < board.y_size; y++) {
     for(int x = 0; x < board.x_size; x++) {
@@ -183,8 +190,8 @@ static void updateDynamicPDAHelper(
     desiredDynamicPDAForWhite = 0.0;
   }
   else {
-    double boardSizeScaling = pow(19.0 * 19.0 / (double)(board.x_size * board.y_size), 0.75);
-    double pdaScalingStartPoints = std::max(4.0 / boardSizeScaling, 2.0);
+    double boardSizeScaling = getBoardSizeScaling(board);
+    double pdaScalingStartPoints = getPointsThresholdForHandicapGame(boardSizeScaling);
     double initialBlackAdvantageInPoints = initialBlackAdvantage(hist);
     Player disadvantagedPla = initialBlackAdvantageInPoints >= 0 ? P_WHITE : P_BLACK;
     double initialAdvantageInPoints = abs(initialBlackAdvantageInPoints);
@@ -307,6 +314,9 @@ struct GTPEngine {
   const double dynamicPlayoutDoublingAdvantageCapPerOppLead;
   double staticPlayoutDoublingAdvantage;
   bool staticPDATakesPrecedence;
+  double normalAvoidRepeatedPatternUtility;
+  double handicapAvoidRepeatedPatternUtility;
+
   double genmoveWideRootNoise;
   double analysisWideRootNoise;
   bool genmoveAntiMirror;
@@ -332,6 +342,7 @@ struct GTPEngine {
   double lastSearchFactor;
   double desiredDynamicPDAForWhite;
   bool avoidMYTDaggerHack;
+  std::unique_ptr<PatternBonusTable> patternBonusTable;
 
   Player perspective;
 
@@ -341,10 +352,12 @@ struct GTPEngine {
     const string& modelFile, SearchParams initialParams, Rules initialRules,
     bool assumeMultiBlackHandicap, bool prevtEncore,
     double dynamicPDACapPerOppLead, double staticPDA, bool staticPDAPrecedence,
+    double normAvoidRepeatedPatternUtility, double hcapAvoidRepeatedPatternUtility,
     bool avoidDagger,
     double genmoveWRN, double analysisWRN,
     bool genmoveAntiMir, bool analysisAntiMir,
-    Player persp, int pvLen
+    Player persp, int pvLen,
+    std::unique_ptr<PatternBonusTable>&& pbTable
   )
     :nnModelFile(modelFile),
      assumeMultipleStartingBlackMovesAreHandicap(assumeMultiBlackHandicap),
@@ -353,6 +366,8 @@ struct GTPEngine {
      dynamicPlayoutDoublingAdvantageCapPerOppLead(dynamicPDACapPerOppLead),
      staticPlayoutDoublingAdvantage(staticPDA),
      staticPDATakesPrecedence(staticPDAPrecedence),
+     normalAvoidRepeatedPatternUtility(normAvoidRepeatedPatternUtility),
+     handicapAvoidRepeatedPatternUtility(hcapAvoidRepeatedPatternUtility),
      genmoveWideRootNoise(genmoveWRN),
      analysisWideRootNoise(analysisWRN),
      genmoveAntiMirror(genmoveAntiMir),
@@ -370,6 +385,7 @@ struct GTPEngine {
      lastSearchFactor(1.0),
      desiredDynamicPDAForWhite(0.0),
      avoidMYTDaggerHack(avoidDagger),
+     patternBonusTable(std::move(pbTable)),
      perspective(persp),
      genmoveTimeSum(0.0)
   {
@@ -409,8 +425,8 @@ struct GTPEngine {
 
     bool wasDefault = false;
     if(boardXSize == -1 || boardYSize == -1) {
-      boardXSize = 19;
-      boardYSize = 19;
+      boardXSize = Board::DEFAULT_LEN;
+      boardYSize = Board::DEFAULT_LEN;
       wasDefault = true;
     }
 
@@ -447,6 +463,7 @@ struct GTPEngine {
       searchRandSeed = Global::uint64ToString(seedRand.nextUInt64());
 
     bot = new AsyncBot(params, nnEval, &logger, searchRandSeed);
+    bot->setCopyOfExternalPatternBonusTable(patternBonusTable);
 
     Board board(boardXSize,boardYSize);
     Player pla = P_BLACK;
@@ -823,6 +840,19 @@ struct GTPEngine {
       bot->setParams(params);
     }
 
+    {
+      double avoidRepeatedPatternUtility = normalAvoidRepeatedPatternUtility;
+      if(!args.analyzing) {
+        double initialOppAdvantage = initialBlackAdvantage(bot->getRootHist()) * (pla == P_WHITE ? 1 : -1);
+        if(initialOppAdvantage > getPointsThresholdForHandicapGame(getBoardSizeScaling(bot->getRootBoard())))
+          avoidRepeatedPatternUtility = handicapAvoidRepeatedPatternUtility;
+      }
+      if(params.avoidRepeatedPatternUtility != avoidRepeatedPatternUtility) {
+        params.avoidRepeatedPatternUtility = avoidRepeatedPatternUtility;
+        bot->setParams(params);
+      }
+    }
+
     //Play faster when winning
     double searchFactor = PlayUtils::getSearchFactor(searchFactorWhenWinningThreshold,searchFactorWhenWinning,params,recentWinLossValues,pla);
     lastSearchFactor = searchFactor;
@@ -924,7 +954,7 @@ struct GTPEngine {
     //Implement friendly pass - in area scoring rules other than tromp-taylor, maybe pass once there are no points
     //left to gain.
     int64_t numVisitsForFriendlyPass = 8 + std::min((int64_t)1000, std::min(params.maxVisits, params.maxPlayouts) / 10);
-    moveLoc = PlayUtils::maybeFriendlyPass(cleanupBeforePass, friendlyPass, pla, moveLoc, bot->getSearchStopAndWait(), numVisitsForFriendlyPass, logger);
+    moveLoc = PlayUtils::maybeFriendlyPass(cleanupBeforePass, friendlyPass, pla, moveLoc, bot->getSearchStopAndWait(), numVisitsForFriendlyPass);
 
     //Implement cleanupBeforePass hack - if the bot wants to pass, instead cleanup if there is something to clean
     //and we are in a ruleset where this is necessary or the user has configured it.
@@ -1073,7 +1103,7 @@ struct GTPEngine {
     bot->analyzeAsync(pla, searchFactor, args.secondsPerReport, callback);
   }
 
-  void computeAnticipatedWinnerAndScore(Logger& logger, Player& winner, double& finalWhiteMinusBlackScore) {
+  void computeAnticipatedWinnerAndScore(Player& winner, double& finalWhiteMinusBlackScore) {
     stopAndWait();
 
     //No playoutDoublingAdvantage to avoid bias
@@ -1108,7 +1138,7 @@ struct GTPEngine {
     else {
       int64_t numVisits = std::max(50, params.numThreads * 10);
       //Try computing the lead for white
-      double lead = PlayUtils::computeLead(bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,logger,OtherGameProperties());
+      double lead = PlayUtils::computeLead(bot->getSearchStopAndWait(),NULL,board,hist,pla,numVisits,OtherGameProperties());
 
       //Round lead to nearest integer or half-integer
       if(hist.rules.gameResultWillBeInteger())
@@ -1125,7 +1155,7 @@ struct GTPEngine {
     bot->setParams(params);
   }
 
-  vector<bool> computeAnticipatedStatuses(Logger& logger) {
+  vector<bool> computeAnticipatedStatuses() {
     stopAndWait();
 
     //Make absolutely sure we can restore the bot's old state
@@ -1149,7 +1179,7 @@ struct GTPEngine {
     //Human-friendly statuses or incomplete game status estimation
     else {
       vector<double> ownershipsBuf;
-      isAlive = PlayUtils::computeAnticipatedStatusesWithOwnership(bot->getSearchStopAndWait(),board,hist,pla,numVisits,logger,ownershipsBuf);
+      isAlive = PlayUtils::computeAnticipatedStatusesWithOwnership(bot->getSearchStopAndWait(),board,hist,pla,numVisits,ownershipsBuf);
     }
 
     //Restore
@@ -1513,6 +1543,9 @@ int MainCmds::gtp(int argc, const char* const* argv) {
   double staticPlayoutDoublingAdvantage = initialParams.playoutDoublingAdvantage;
   const bool staticPDATakesPrecedence = cfg.contains("playoutDoublingAdvantage") && !cfg.contains("dynamicPlayoutDoublingAdvantageCapPerOppLead");
   const bool avoidMYTDaggerHack = cfg.contains("avoidMYTDaggerHack") ? cfg.getBool("avoidMYTDaggerHack") : false;
+  const double normalAvoidRepeatedPatternUtility = initialParams.avoidRepeatedPatternUtility;
+  const double handicapAvoidRepeatedPatternUtility = (cfg.contains("avoidRepeatedPatternUtility") || cfg.contains("avoidRepeatedPatternUtility0")) ?
+    initialParams.avoidRepeatedPatternUtility : 0.005;
 
   const int defaultBoardXSize =
     cfg.contains("defaultBoardXSize") ? cfg.getInt("defaultBoardXSize",2,Board::MAX_LEN) :
@@ -1530,10 +1563,17 @@ int MainCmds::gtp(int argc, const char* const* argv) {
 
   const double genmoveWideRootNoise = initialParams.wideRootNoise;
   const double analysisWideRootNoise =
-    cfg.contains("analysisWideRootNoise") ? cfg.getDouble("analysisWideRootNoise",0.0,5.0) : genmoveWideRootNoise;
-  const double analysisAntiMirror = initialParams.antiMirror;
-  const double genmoveAntiMirror =
+    cfg.contains("analysisWideRootNoise") ? cfg.getDouble("analysisWideRootNoise",0.0,5.0) : Setup::DEFAULT_ANALYSIS_WIDE_ROOT_NOISE;
+  const bool analysisAntiMirror = initialParams.antiMirror;
+  const bool genmoveAntiMirror =
     cfg.contains("genmoveAntiMirror") ? cfg.getBool("genmoveAntiMirror") : cfg.contains("antiMirror") ? cfg.getBool("antiMirror") : true;
+
+  std::unique_ptr<PatternBonusTable> patternBonusTable = nullptr;
+  {
+    std::vector<std::unique_ptr<PatternBonusTable>> tables = Setup::loadAvoidSgfPatternBonusTables(cfg,logger);
+    assert(tables.size() == 1);
+    patternBonusTable = std::move(tables[0]);
+  }
 
   Player perspective = Setup::parseReportAnalysisWinrates(cfg,C_EMPTY);
 
@@ -1542,10 +1582,12 @@ int MainCmds::gtp(int argc, const char* const* argv) {
     assumeMultipleStartingBlackMovesAreHandicap,preventEncore,
     dynamicPlayoutDoublingAdvantageCapPerOppLead,
     staticPlayoutDoublingAdvantage,staticPDATakesPrecedence,
+    normalAvoidRepeatedPatternUtility, handicapAvoidRepeatedPatternUtility,
     avoidMYTDaggerHack,
     genmoveWideRootNoise,analysisWideRootNoise,
     genmoveAntiMirror,analysisAntiMirror,
-    perspective,analysisPVLen
+    perspective,analysisPVLen,
+    std::move(patternBonusTable)
   );
   engine->setOrResetBoardSize(cfg,logger,seedRand,defaultBoardXSize,defaultBoardYSize);
 
@@ -2448,7 +2490,7 @@ int MainCmds::gtp(int argc, const char* const* argv) {
 
       Player winner = C_EMPTY;
       double finalWhiteMinusBlackScore = 0.0;
-      engine->computeAnticipatedWinnerAndScore(logger,winner,finalWhiteMinusBlackScore);
+      engine->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
 
       if(winner == C_EMPTY)
         response = "0";
@@ -2480,7 +2522,7 @@ int MainCmds::gtp(int argc, const char* const* argv) {
         }
 
         if(statusMode < 3) {
-          vector<bool> isAlive = engine->computeAnticipatedStatuses(logger);
+          vector<bool> isAlive = engine->computeAnticipatedStatuses();
           Board board = engine->bot->getRootBoard();
           vector<Loc> locsToReport;
 

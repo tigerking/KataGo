@@ -254,7 +254,7 @@ void Tests::runSelfplayInitTestsWithNN(const string& modelFile) {
     playSettings.forSelfPlay = true;
 
     string searchRandSeed = seedBase+"search";
-    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, searchRandSeed);
+    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, &logger, searchRandSeed);
 
     Rand rand(seedBase+"play");
     OtherGameProperties otherGameProps;
@@ -287,13 +287,13 @@ void Tests::runSelfplayInitTestsWithNN(const string& modelFile) {
       Player pla = forkData.forks[0]->pla;
       PlayUtils::adjustKomiToEven(
         bot, bot, board, hist, pla,
-        playSettings.cheapSearchVisits, logger, OtherGameProperties(), rand
+        playSettings.cheapSearchVisits, OtherGameProperties(), rand
       );
       BoardHistory hist2 = forkData.forks[0]->hist;
       float oldKomi = hist2.rules.komi;
       double lead = PlayUtils::computeLead(
         bot, bot, board, hist2, pla,
-        playSettings.cheapSearchVisits, logger, OtherGameProperties()
+        playSettings.cheapSearchVisits, OtherGameProperties()
       );
       cout << "Lead: " << lead << endl;
       hist.printDebugInfo(cout,board);
@@ -465,7 +465,7 @@ void Tests::runMoreSelfplayTestsWithNN(const string& modelFile) {
     playSettings.forSelfPlay = !testResign;
 
     string searchRandSeed = seedBase+"search";
-    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, searchRandSeed);
+    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, &logger, searchRandSeed);
 
     cout << "====================================================================================================" << endl;
     cout << "====================================================================================================" << endl;
@@ -542,14 +542,14 @@ void Tests::runMoreSelfplayTestsWithNN(const string& modelFile) {
 
     SearchParams params;
     string searchRandSeed = seedBase+"search";
-    Search* bot = new Search(params, nnEval, searchRandSeed);
+    Search* bot = new Search(params, nnEval, &logger, searchRandSeed);
 
     rules.komi = komi;
     Player pla = P_BLACK;
     BoardHistory hist(board,pla,rules,0);
     int compensateKomiVisits = 50;
     OtherGameProperties otherGameProps;
-    double lead = PlayUtils::computeLead(bot,bot,board,hist,pla,compensateKomiVisits,logger,otherGameProps);
+    double lead = PlayUtils::computeLead(bot,bot,board,hist,pla,compensateKomiVisits,otherGameProps);
     testAssert(hist.rules.komi == komi);
     cout << board << endl;
     cout << "LEAD: " << lead << endl;
@@ -614,7 +614,7 @@ void Tests::runMoreSelfplayTestsWithNN(const string& modelFile) {
     playSettings.forSelfPlay = true;
 
     string searchRandSeed = seedBase+"search";
-    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, searchRandSeed);
+    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, &logger, searchRandSeed);
 
     cout << "====================================================================================================" << endl;
     cout << "====================================================================================================" << endl;
@@ -919,7 +919,7 @@ xxxxxxxx.
     auto shouldStop = []() { return false; };
     for(int i = 0; i<100; i++) {
       string seed = "game init test search seed:" + Global::int64ToString(i);
-      FinishedGameData* data = gameRunner->runGame(seed, botSpec, botSpec, forkData, NULL, logger, shouldStop, nullptr, nullptr, false);
+      FinishedGameData* data = gameRunner->runGame(seed, botSpec, botSpec, forkData, NULL, logger, shouldStop, nullptr, nullptr, nullptr);
       cout << data->startHist.rules << endl;
       cout << "Start moves size " << data->startHist.moveHistory.size()
            << " Start pla " << PlayerIO::playerToString(data->startPla)
@@ -935,6 +935,107 @@ xxxxxxxx.
     }
     delete gameRunner;
     delete forkData;
+  }
+
+
+  {
+    cout << "====================================================================================================" << endl;
+    cout << "====================================================================================================" << endl;
+    cout << "====================================================================================================" << endl;
+    cout << "Running a 13x13 game in 5-move bursts with realistic visits and parameters to see training targets" << endl;
+
+    nnEval->clearCache();
+    nnEval->clearStats();
+
+    string sgfData = TestCommon::getBenchmarkSGFData(13);
+    CompactSgf* sgf = CompactSgf::parse(sgfData);
+
+    SearchParams params = SearchParams::forTestsV1();
+    params.rootNoiseEnabled = true;
+    params.rootPolicyTemperatureEarly = 1.5;
+    params.rootPolicyTemperature = 1.1;
+    params.rootDesiredPerChildVisitsCoeff = 2.0;
+    params.maxVisits = 800;
+    params.drawEquivalentWinsForWhite = 0.5;
+
+    MatchPairer::BotSpec botSpec;
+    botSpec.botIdx = 0;
+    botSpec.botName = string("test");
+    botSpec.nnEval = nnEval;
+    botSpec.baseParams = params;
+
+    PlaySettings playSettings;
+    playSettings.initGamesWithPolicy = false;
+    playSettings.sidePositionProb = 0.0;
+    playSettings.cheapSearchProb = 0.5;
+    playSettings.cheapSearchVisits = 200;
+    playSettings.cheapSearchTargetWeight = 0;
+    playSettings.minAsymmetricCompensateKomiProb = 0.0;
+    playSettings.compensateAfterPolicyInitProb = 0.0;
+    playSettings.estimateLeadProb = 1.0;
+    playSettings.earlyForkGameProb = 0.0;
+    playSettings.forkGameProb = 0.0;
+
+    playSettings.policySurpriseDataWeight = 0.5;
+    playSettings.valueSurpriseDataWeight = 0.15;
+    playSettings.noResolveTargetWeights = true;
+    playSettings.allowResignation = false;
+    playSettings.reduceVisits = false;
+    playSettings.handicapAsymmetricPlayoutProb = 0;
+    playSettings.normalAsymmetricPlayoutProb = 0;
+    playSettings.sekiForkHackProb = 0;
+    playSettings.fancyKomiVarying = false;
+
+    playSettings.forSelfPlay = true;
+
+    ExtraBlackAndKomi extraBlackAndKomi;
+    extraBlackAndKomi.extraBlack = 0;
+    extraBlackAndKomi.komiMean = rules.komi;
+    extraBlackAndKomi.komiStdev = 0;
+    extraBlackAndKomi.makeGameFair = false;
+    extraBlackAndKomi.makeGameFairForEmptyBoard = false;
+
+    vector<Move> moves = sgf->moves;
+
+    Rules initialRules = Rules::parseRules("chinese");
+    Board board;
+    Player nextPla;
+    BoardHistory hist;
+    sgf->setupInitialBoardAndHist(initialRules, board, nextPla, hist);
+    for(size_t i = 0; i<moves.size(); i++) {
+      if(i % 10 == 0) {
+        bool doEndGameIfAllPassAlive = true;
+        bool clearBotAfterSearch = true;
+        int maxMovesPerGame = 5;
+        auto shouldStop = []() { return false; };
+
+        string searchRandSeed = "target testing" + Global::intToString((int)i);
+        Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, &logger, searchRandSeed);
+
+        Rand rand(searchRandSeed + "rand");
+        OtherGameProperties otherGameProps;
+        bool logSearchInfo = false;
+        FinishedGameData* gameData = Play::runGame(
+          board,nextPla,hist,extraBlackAndKomi,
+          botSpec,botSpec,
+          bot,bot,
+          doEndGameIfAllPassAlive, clearBotAfterSearch,
+          logger, logSearchInfo, false,
+          maxMovesPerGame, shouldStop,
+          playSettings, otherGameProps,
+          rand,
+          nullptr,
+          nullptr
+        );
+        gameData->printDebug(cout);
+      }
+
+      bool suc = hist.makeBoardMoveTolerant(board,moves[i].loc,moves[i].pla);
+      testAssert(suc);
+      nextPla = getOpp(nextPla);
+    }
+
+    delete sgf;
   }
 
   delete nnEval;
@@ -978,9 +1079,9 @@ void Tests::runSelfplayStatTestsWithNN(const string& modelFile) {
     std::map<int,int> bStoneDistribution;
     std::map<int,int> wStoneDistribution;
     std::map<string,int> bSizeDistribution;
-    for(int i = 0; i<1000; i++) {
+    for(int i = 0; i<400; i++) {
       string seed = name + Global::int64ToString(i);
-      FinishedGameData* data = gameRunner->runGame(seed, botSpec, botSpec, forkData, startPosSample, logger, shouldStop, nullptr, nullptr, false);
+      FinishedGameData* data = gameRunner->runGame(seed, botSpec, botSpec, forkData, startPosSample, logger, shouldStop, nullptr, nullptr, nullptr);
       komiDistribution[data->startHist.rules.komi] += 1;
       bStoneDistribution[data->startBoard.numPlaStonesOnBoard(P_BLACK)] += 1;
       wStoneDistribution[data->startBoard.numPlaStonesOnBoard(P_WHITE)] += 1;
@@ -1834,7 +1935,7 @@ void Tests::runSekiTrainWriteTests(const string& modelFile) {
     playSettings.forSelfPlay = true;
 
     string searchRandSeed = seedBase+"search";
-    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, searchRandSeed);
+    Search* bot = new Search(botSpec.baseParams, botSpec.nnEval, &logger, searchRandSeed);
 
     Rand rand(seedBase+"play");
     OtherGameProperties otherGameProps;
@@ -1887,13 +1988,13 @@ void Tests::runSekiTrainWriteTests(const string& modelFile) {
     cout << "Also testing status logic inference!" << endl;
     SearchParams params;
     string searchRandSeed = "test statuses";
-    Search* bot = new Search(params, nnEval, searchRandSeed);
+    Search* bot = new Search(params, nnEval, &logger, searchRandSeed);
 
-    auto testStatuses = [&nnEval,&bot,&logger](const Board& board, const BoardHistory& hist, Player pla) {
+    auto testStatuses = [&bot](const Board& board, const BoardHistory& hist, Player pla) {
       int numVisits = 50;
-      vector<double> ownership = PlayUtils::computeOwnership(bot,board,hist,pla,numVisits,logger);
+      vector<double> ownership = PlayUtils::computeOwnership(bot,board,hist,pla,numVisits);
       vector<double> buf;
-      vector<bool> isAlive = PlayUtils::computeAnticipatedStatusesWithOwnership(bot,board,hist,pla,numVisits,logger,buf);
+      vector<bool> isAlive = PlayUtils::computeAnticipatedStatusesWithOwnership(bot,board,hist,pla,numVisits,buf);
       testAssert(bot->alwaysIncludeOwnerMap == false);
       cout << "Search assumes " << PlayerIO::playerToString(pla) << " first" << endl;
       cout << "Rules " << hist.rules << endl;

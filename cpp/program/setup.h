@@ -51,6 +51,8 @@ namespace Setup {
 
   constexpr int MAX_BOT_PARAMS_FROM_CFG = 4096;
 
+  constexpr double DEFAULT_ANALYSIS_WIDE_ROOT_NOISE = 0.04;
+
   //Loads search parameters for bot from config, by bot idx.
   //Fails if no parameters are found.
   std::vector<SearchParams> loadParams(
@@ -77,6 +79,9 @@ namespace Setup {
 
   //Get sets of options that are mutually exclusive. Intended for use in configParser
   std::vector<std::pair<std::set<std::string>,std::set<std::string>>> getMutexKeySets();
+
+  //Load pattern bonus tables that avoid repeating moves that the user supplied in external sgfs
+  std::vector<std::unique_ptr<PatternBonusTable>> loadAvoidSgfPatternBonusTables(ConfigParser& cfg, Logger& logger);
 }
 
 #endif  // PROGRAM_SETUP_H_

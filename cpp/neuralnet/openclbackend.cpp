@@ -177,6 +177,9 @@ struct CompiledPrograms {
     if(useFP16Compute)
       maybeFP16CompileOptions += OpenCLKernels::fp16ComputeDefine;
 
+    printf("device size = %lu\n", deviceIdsToUse.size());
+    // printf("device size = %lu, id0=%d\n", deviceIdsToUse.size(), deviceIdsToUse[0]);
+
     conv2dNCHWProgram = compileProgram(
       "conv2dNCHWProgram", context, deviceIdsToUse, OpenCLKernels::conv2dNCHW,
       maybeFP16CompileOptions
@@ -321,6 +324,8 @@ struct ComputeContext {
       vector<cl_device_id> deviceIds = { device->info.deviceId };
 
       OpenCLTuneParams tuneParams = getParamsForDeviceName(name, device->info.gpuIdx);
+
+      printf("[%d] device name = %s, gpuIdx=%d\n", i, device->info.name.c_str(), device->info.gpuIdx);
 
       bool useFP16Storage = useFP16Mode == enabled_t::True || (useFP16Mode == enabled_t::Auto && tuneParams.shouldUseFP16Storage);
       bool useFP16Compute = (useFP16Mode == enabled_t::True || useFP16Mode == enabled_t::Auto) && tuneParams.shouldUseFP16Compute;

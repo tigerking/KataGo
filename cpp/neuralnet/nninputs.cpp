@@ -78,6 +78,17 @@ double ScoreValue::whiteScoreValueOfScoreSmoothNoDrawAdjust(double finalWhiteMin
     return atan(adjustedScore / (scale*sqrt(b.x_size*b.y_size))) * twoOverPi;
 }
 
+double ScoreValue::whiteDScoreValueDScoreSmoothNoDrawAdjust(double finalWhiteMinusBlackScore, double center, double scale, const Board& b) {
+  double adjustedScore = finalWhiteMinusBlackScore - center;
+  double scaleFactor;
+  if(b.x_size == b.y_size)
+    scaleFactor = scale*b.x_size;
+  else
+    scaleFactor = scale*sqrt(b.x_size*b.y_size);
+
+  return scaleFactor / (scaleFactor * scaleFactor + adjustedScore * adjustedScore) * twoOverPi;
+}
+
 static double inverse_atan(double x) {
   if(x >= piOverTwo - 1e-6) return 1e6;
   if(x <= -piOverTwo + 1e-6) return -1e6;
@@ -596,6 +607,10 @@ Loc SymmetryHelpers::getSymLoc(int x, int y, const Board& board, int symmetry) {
   if(transpose)
     std::swap(x,y);
   return Location::getLoc(x,y,transpose ? board.y_size : board.x_size);
+}
+
+Loc SymmetryHelpers::getSymLoc(Loc loc, const Board& board, int symmetry) {
+  return getSymLoc(Location::getX(loc,board.x_size), Location::getY(loc,board.x_size), board, symmetry);
 }
 
 Board SymmetryHelpers::getSymBoard(const Board& board, int symmetry) {

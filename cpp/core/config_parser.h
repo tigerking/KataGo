@@ -49,6 +49,9 @@ class ConfigParser {
   std::string getContents() const;
 
   bool contains(const std::string& key) const;
+  bool containsAny(const std::vector<std::string>& possibleKeys) const;
+  std::string firstFoundOrFail(const std::vector<std::string>& possibleKeys) const;
+  std::string firstFoundOrEmpty(const std::vector<std::string>& possibleKeys) const;
 
   std::string getString(const std::string& key);
   bool getBool(const std::string& key);
@@ -67,6 +70,7 @@ class ConfigParser {
   double getDouble(const std::string& key, double min, double max);
 
   std::vector<std::string> getStrings(const std::string& key);
+  std::vector<std::string> getStringsNonEmptyTrim(const std::string& key);
   std::vector<bool> getBools(const std::string& key);
   std::vector<int> getInts(const std::string& key);
   std::vector<int64_t> getInt64s(const std::string& key);

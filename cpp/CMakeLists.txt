@@ -232,11 +232,13 @@ endif()
 
 add_executable(katago
   core/global.cpp
+  core/base64.cpp
   core/bsearch.cpp
   core/config_parser.cpp
   core/datetime.cpp
   core/elo.cpp
   core/fancymath.cpp
+  core/fileutils.cpp
   core/hash.cpp
   core/logger.cpp
   core/makedir.cpp
@@ -246,6 +248,7 @@ add_executable(katago
   core/rand_helpers.cpp
   core/sha2.cpp
   core/test.cpp
+  core/threadsafecounter.cpp
   core/threadsafequeue.cpp
   core/timer.cpp
   game/board.cpp
@@ -256,6 +259,7 @@ add_executable(katago
   dataio/trainingwrite.cpp
   dataio/loadmodel.cpp
   dataio/homedata.cpp
+  dataio/files.cpp
   neuralnet/nninputs.cpp
   neuralnet/modelversion.cpp
   neuralnet/nneval.cpp
@@ -268,7 +272,9 @@ add_executable(katago
   search/searchresults.cpp
   search/asyncbot.cpp
   search/distributiontable.cpp
+  search/localpattern.cpp
   search/subtreevaluebiastable.cpp
+  search/patternbonustable.cpp
   search/analysisdata.cpp
   program/gtpconfig.cpp
   program/setup.cpp
@@ -405,6 +411,7 @@ endif()
 # add_compile_definitions(NDEBUG)
 
 if(MSVC)
+  message(STATUS "Setting up build for MSVC.")
   # Suppress min and max macros on windows
   # Also define a few other things for windows
   target_compile_definitions(katago PRIVATE NOMINMAX)
@@ -422,7 +429,8 @@ if(MSVC)
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8388608")
 endif()
 
-if(CMAKE_COMPILER_IS_GNUCC)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  message(STATUS "Setting up build for GNU or Clang.")
   if(NOT (${CMAKE_SYSTEM_PROCESSOR} MATCHES "(arm|aarch32|aarch64)"))
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -mfpmath=sse")
   endif()
@@ -439,10 +447,18 @@ if(CMAKE_COMPILER_IS_GNUCC)
     target_link_libraries(katago Threads::Threads)
   endif()
 
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2 -pedantic -Wall -Wextra -Wno-sign-compare -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Woverloaded-virtual -Wredundant-decls -Wshadow -Wstrict-null-sentinel -Wstrict-overflow=1 -Wswitch-default -Wfloat-conversion -Wunused")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O2 -pedantic -Wall -Wextra -Wno-sign-compare -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Wmissing-declarations -Wmissing-include-dirs -Woverloaded-virtual -Wredundant-decls -Wshadow -Wstrict-overflow=1 -Wswitch-default -Wfloat-conversion -Wunused")
 
-  if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 6.1)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnull-dereference -Walloc-zero -Wduplicated-branches -Wduplicated-cond -Wdangling-else -Wrestrict")
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "Enabling GNU-specific build options.")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wlogical-op -Wnoexcept -Wstrict-null-sentinel")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 6.1)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnull-dereference -Walloc-zero -Wduplicated-branches -Wduplicated-cond -Wdangling-else -Wrestrict")
+    endif()
+  else()
+    message(STATUS "Enabling Clang-specific build options.")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wnull-dereference -Wdangling-else")
+    target_link_libraries(katago "atomic")
   endif()
 
   if(USE_TCMALLOC)

@@ -525,7 +525,8 @@ DevicesContext::DevicesContext(const vector<DeviceInfo>& allDeviceInfos, const v
 
     string message =
       "Using OpenCL Device " + Global::intToString(gpuIdxsToUse[i]) + ": " + device->info.name +
-      " (" + device->info.vendor + ") " +
+      " (" + device->info.vendor + ") " + " type(" + Global::intToString(device->info.deviceType) +") " +
+      " (GPU = " + Global::intToString(CL_DEVICE_TYPE_GPU) + ") " +
       device->info.openCLVersion + " (Extensions: " + device->info.extensions + ")";
     if(logger != NULL) {
       logger->write(message);

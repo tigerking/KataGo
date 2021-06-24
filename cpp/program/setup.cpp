@@ -415,13 +415,24 @@ vector<SearchParams> Setup::loadParams(
 
     if(cfg.contains("cpuctExploration"+idxStr)) params.cpuctExploration = cfg.getDouble("cpuctExploration"+idxStr, 0.0, 10.0);
     else if(cfg.contains("cpuctExploration"))   params.cpuctExploration = cfg.getDouble("cpuctExploration",        0.0, 10.0);
-    else                                        params.cpuctExploration = 0.9;
+    else                                        params.cpuctExploration = 1.0;
     if(cfg.contains("cpuctExplorationLog"+idxStr)) params.cpuctExplorationLog = cfg.getDouble("cpuctExplorationLog"+idxStr, 0.0, 10.0);
     else if(cfg.contains("cpuctExplorationLog"))   params.cpuctExplorationLog = cfg.getDouble("cpuctExplorationLog",        0.0, 10.0);
-    else                                           params.cpuctExplorationLog = 0.4;
+    else                                           params.cpuctExplorationLog = 0.45;
     if(cfg.contains("cpuctExplorationBase"+idxStr)) params.cpuctExplorationBase = cfg.getDouble("cpuctExplorationBase"+idxStr, 10.0, 100000.0);
     else if(cfg.contains("cpuctExplorationBase"))   params.cpuctExplorationBase = cfg.getDouble("cpuctExplorationBase",        10.0, 100000.0);
     else                                            params.cpuctExplorationBase = 500.0;
+
+    if(cfg.contains("cpuctUtilityStdevPrior"+idxStr)) params.cpuctUtilityStdevPrior = cfg.getDouble("cpuctUtilityStdevPrior"+idxStr, 0.0, 10.0);
+    else if(cfg.contains("cpuctUtilityStdevPrior"))   params.cpuctUtilityStdevPrior = cfg.getDouble("cpuctUtilityStdevPrior",        0.0, 10.0);
+    else                                              params.cpuctUtilityStdevPrior = 0.40;
+    if(cfg.contains("cpuctUtilityStdevPriorWeight"+idxStr)) params.cpuctUtilityStdevPriorWeight = cfg.getDouble("cpuctUtilityStdevPriorWeight"+idxStr, 0.0, 100.0);
+    else if(cfg.contains("cpuctUtilityStdevPriorWeight"))   params.cpuctUtilityStdevPriorWeight = cfg.getDouble("cpuctUtilityStdevPriorWeight",        0.0, 100.0);
+    else                                                    params.cpuctUtilityStdevPriorWeight = 2.0;
+    if(cfg.contains("cpuctUtilityStdevScale"+idxStr)) params.cpuctUtilityStdevScale = cfg.getDouble("cpuctUtilityStdevScale"+idxStr, 0.0, 1.0);
+    else if(cfg.contains("cpuctUtilityStdevScale"))   params.cpuctUtilityStdevScale = cfg.getDouble("cpuctUtilityStdevScale",        0.0, 1.0);
+    else                                              params.cpuctUtilityStdevScale = (setupFor != SETUP_FOR_DISTRIBUTED ? 0.85 : 0.0);
+
 
     if(cfg.contains("fpuReductionMax"+idxStr)) params.fpuReductionMax = cfg.getDouble("fpuReductionMax"+idxStr, 0.0, 2.0);
     else if(cfg.contains("fpuReductionMax"))   params.fpuReductionMax = cfg.getDouble("fpuReductionMax",        0.0, 2.0);
@@ -432,12 +443,35 @@ vector<SearchParams> Setup::loadParams(
     if(cfg.contains("fpuParentWeight"+idxStr)) params.fpuParentWeight = cfg.getDouble("fpuParentWeight"+idxStr,        0.0, 1.0);
     else if(cfg.contains("fpuParentWeight"))   params.fpuParentWeight = cfg.getDouble("fpuParentWeight",        0.0, 1.0);
     else                                       params.fpuParentWeight = 0.0;
-    if(cfg.contains("parentValueWeightFactor"+idxStr)) params.parentValueWeightFactor = cfg.getDouble("parentValueWeightFactor"+idxStr, 0.00001, 1.0);
-    else if(cfg.contains("parentValueWeightFactor")) params.parentValueWeightFactor = cfg.getDouble("parentValueWeightFactor", 0.00001, 1.0);
-    else params.parentValueWeightFactor = 1.0;
+
+
     if(cfg.contains("valueWeightExponent"+idxStr)) params.valueWeightExponent = cfg.getDouble("valueWeightExponent"+idxStr, 0.0, 1.0);
     else if(cfg.contains("valueWeightExponent")) params.valueWeightExponent = cfg.getDouble("valueWeightExponent", 0.0, 1.0);
     else params.valueWeightExponent = 0.5;
+    if(cfg.contains("useNoisePruning"+idxStr)) params.useNoisePruning = cfg.getBool("useNoisePruning"+idxStr);
+    else if(cfg.contains("useNoisePruning"))   params.useNoisePruning = cfg.getBool("useNoisePruning");
+    else                                       params.useNoisePruning = (setupFor != SETUP_FOR_DISTRIBUTED);
+    if(cfg.contains("noisePruneUtilityScale"+idxStr)) params.noisePruneUtilityScale = cfg.getDouble("noisePruneUtilityScale"+idxStr, 0.001, 10.0);
+    else if(cfg.contains("noisePruneUtilityScale"))   params.noisePruneUtilityScale = cfg.getDouble("noisePruneUtilityScale", 0.001, 10.0);
+    else                                              params.noisePruneUtilityScale = 0.15;
+    if(cfg.contains("noisePruningCap"+idxStr)) params.noisePruningCap = cfg.getDouble("noisePruningCap"+idxStr, 0.0, 1e50);
+    else if(cfg.contains("noisePruningCap"))   params.noisePruningCap = cfg.getDouble("noisePruningCap", 0.0, 1e50);
+    else                                       params.noisePruningCap = 1e50;
+
+
+    if(cfg.contains("useUncertainty"+idxStr)) params.useUncertainty = cfg.getBool("useUncertainty"+idxStr);
+    else if(cfg.contains("useUncertainty"))   params.useUncertainty = cfg.getBool("useUncertainty");
+    else                                      params.useUncertainty = (setupFor != SETUP_FOR_DISTRIBUTED);
+    if(cfg.contains("uncertaintyCoeff"+idxStr)) params.uncertaintyCoeff = cfg.getDouble("uncertaintyCoeff"+idxStr, 0.0001, 1.0);
+    else if(cfg.contains("uncertaintyCoeff"))   params.uncertaintyCoeff = cfg.getDouble("uncertaintyCoeff", 0.0001, 1.0);
+    else                                        params.uncertaintyCoeff = 0.25;
+    if(cfg.contains("uncertaintyExponent"+idxStr)) params.uncertaintyExponent = cfg.getDouble("uncertaintyExponent"+idxStr, 0.0, 2.0);
+    else if(cfg.contains("uncertaintyExponent"))   params.uncertaintyExponent = cfg.getDouble("uncertaintyExponent", 0.0, 2.0);
+    else                                           params.uncertaintyExponent = 1.0;
+    if(cfg.contains("uncertaintyMaxWeight"+idxStr)) params.uncertaintyMaxWeight = cfg.getDouble("uncertaintyMaxWeight"+idxStr, 1.0, 100.0);
+    else if(cfg.contains("uncertaintyMaxWeight"))   params.uncertaintyMaxWeight = cfg.getDouble("uncertaintyMaxWeight", 1.0, 100.0);
+    else                                            params.uncertaintyMaxWeight = 8.0;
+
 
     if(cfg.contains("rootNoiseEnabled"+idxStr)) params.rootNoiseEnabled = cfg.getBool("rootNoiseEnabled"+idxStr);
     else if(cfg.contains("rootNoiseEnabled"))   params.rootNoiseEnabled = cfg.getBool("rootNoiseEnabled");
@@ -525,7 +559,7 @@ vector<SearchParams> Setup::loadParams(
     params.avoidMYTDaggerHackPla = C_EMPTY;
     if(cfg.contains("wideRootNoise"+idxStr)) params.wideRootNoise = cfg.getDouble("wideRootNoise"+idxStr, 0.0, 5.0);
     else if(cfg.contains("wideRootNoise"))   params.wideRootNoise = cfg.getDouble("wideRootNoise", 0.0, 5.0);
-    else                                     params.wideRootNoise = 0.0;
+    else                                     params.wideRootNoise = (setupFor == SETUP_FOR_ANALYSIS ? Setup::DEFAULT_ANALYSIS_WIDE_ROOT_NOISE : 0.00);
 
     if(cfg.contains("playoutDoublingAdvantage"+idxStr)) params.playoutDoublingAdvantage = cfg.getDouble("playoutDoublingAdvantage"+idxStr,-3.0,3.0);
     else if(cfg.contains("playoutDoublingAdvantage"))   params.playoutDoublingAdvantage = cfg.getDouble("playoutDoublingAdvantage",-3.0,3.0);
@@ -533,6 +567,10 @@ vector<SearchParams> Setup::loadParams(
     if(cfg.contains("playoutDoublingAdvantagePla"+idxStr)) params.playoutDoublingAdvantagePla = parsePlayer("playoutDoublingAdvantagePla",cfg.getString("playoutDoublingAdvantagePla"+idxStr));
     else if(cfg.contains("playoutDoublingAdvantagePla"))   params.playoutDoublingAdvantagePla = parsePlayer("playoutDoublingAdvantagePla",cfg.getString("playoutDoublingAdvantagePla"));
     else                                                   params.playoutDoublingAdvantagePla = C_EMPTY;
+
+    if(cfg.contains("avoidRepeatedPatternUtility"+idxStr)) params.avoidRepeatedPatternUtility = cfg.getDouble("avoidRepeatedPatternUtility"+idxStr, -3.0, 3.0);
+    else if(cfg.contains("avoidRepeatedPatternUtility"))   params.avoidRepeatedPatternUtility = cfg.getDouble("avoidRepeatedPatternUtility", -3.0, 3.0);
+    else                                                   params.avoidRepeatedPatternUtility = 0.0;
 
     if(cfg.contains("nnPolicyTemperature"+idxStr))
       params.nnPolicyTemperature = cfg.getFloat("nnPolicyTemperature"+idxStr,0.01f,5.0f);
@@ -558,9 +596,9 @@ vector<SearchParams> Setup::loadParams(
     if(cfg.contains("mutexPoolSize"+idxStr)) params.mutexPoolSize = (uint32_t)cfg.getInt("mutexPoolSize"+idxStr, 1, 1 << 24);
     else if(cfg.contains("mutexPoolSize"))   params.mutexPoolSize = (uint32_t)cfg.getInt("mutexPoolSize",        1, 1 << 24);
     else                                     params.mutexPoolSize = 16384;
-    if(cfg.contains("numVirtualLossesPerThread"+idxStr)) params.numVirtualLossesPerThread = (int32_t)cfg.getInt("numVirtualLossesPerThread"+idxStr, 1, 1000);
-    else if(cfg.contains("numVirtualLossesPerThread"))   params.numVirtualLossesPerThread = (int32_t)cfg.getInt("numVirtualLossesPerThread",        1, 1000);
-    else                                                 params.numVirtualLossesPerThread = 1;
+    if(cfg.contains("numVirtualLossesPerThread"+idxStr)) params.numVirtualLossesPerThread = cfg.getDouble("numVirtualLossesPerThread"+idxStr, 0.01, 1000.0);
+    else if(cfg.contains("numVirtualLossesPerThread"))   params.numVirtualLossesPerThread = cfg.getDouble("numVirtualLossesPerThread",        0.01, 1000.0);
+    else                                                 params.numVirtualLossesPerThread = 1.0;
 
     if(cfg.contains("treeReuseCarryOverTimeFactor"+idxStr)) params.treeReuseCarryOverTimeFactor = cfg.getDouble("treeReuseCarryOverTimeFactor"+idxStr,0.0,1.0);
     else if(cfg.contains("treeReuseCarryOverTimeFactor"))   params.treeReuseCarryOverTimeFactor = cfg.getDouble("treeReuseCarryOverTimeFactor",0.0,1.0);
@@ -692,4 +730,48 @@ vector<pair<set<string>,set<string>>> Setup::getMutexKeySets() {
     ),
   };
   return mutexKeySets;
+}
+
+std::vector<std::unique_ptr<PatternBonusTable>> Setup::loadAvoidSgfPatternBonusTables(ConfigParser& cfg, Logger& logger) {
+  vector<SearchParams> paramss;
+  int numBots = 1;
+  if(cfg.contains("numBots"))
+    numBots = cfg.getInt("numBots",1,MAX_BOT_PARAMS_FROM_CFG);
+
+  std::vector<std::unique_ptr<PatternBonusTable>> tables;
+  for(int i = 0; i<numBots; i++) {
+    //Indexes different bots, such as in a match config
+    const string idxStr = Global::intToString(i);
+
+    std::unique_ptr<PatternBonusTable> patternBonusTable = nullptr;
+    for(int j = 1; j<100000; j++) {
+      //Indexes different sets of params for different sets of files, to combine into one bot.
+      const string setStr = j == 1 ? string() : Global::intToString(j);
+      const string prefix = "avoidSgf"+setStr;
+
+      //Tries to find prefix+suffix+optional index
+      //E.g. "avoidSgf"+"PatternUtility"+(optional integer indexing which bot for match)
+      auto contains = [&cfg,&idxStr,&prefix](const string& suffix) {
+        return cfg.containsAny({prefix+suffix+idxStr,prefix+suffix});
+      };
+      auto find = [&cfg,&idxStr,&prefix](const string& suffix) {
+        return cfg.firstFoundOrFail({prefix+suffix+idxStr,prefix+suffix});
+      };
+
+      if(contains("PatternUtility")) {
+        double penalty = cfg.getDouble(find("PatternUtility"),-3.0,3.0);
+        double lambda = contains("PatternLambda") ? cfg.getDouble(find("PatternLambda"),0.0,1.0) : 1.0;
+        int minTurnNumber = contains("PatternMinTurnNumber") ? cfg.getInt(find("PatternMinTurnNumber"),0,1000000) : 0;
+        size_t maxFiles = contains("PatternMaxFiles") ? (size_t)cfg.getInt(find("PatternMaxFiles"),1,1000000) : 1000000;
+        vector<string> allowedPlayerNames = contains("PatternAllowedNames") ? cfg.getStringsNonEmptyTrim(find("PatternAllowedNames")) : vector<string>();
+        vector<string> sgfDirs = cfg.getStrings(find("PatternDirs"));
+        if(patternBonusTable == nullptr)
+          patternBonusTable = std::make_unique<PatternBonusTable>();
+        string logSource = "bot " + idxStr;
+        patternBonusTable->avoidRepeatedSgfMoves(sgfDirs,penalty,lambda,minTurnNumber,maxFiles,allowedPlayerNames,logger,logSource);
+      }
+    }
+    tables.push_back(std::move(patternBonusTable));
+  }
+  return tables;
 }
